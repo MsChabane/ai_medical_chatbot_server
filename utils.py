@@ -1,6 +1,8 @@
 import json
 
 
+
+
 async def stream_app_output(app,input,config):
     async for output in app.astream(input,config=config):
         if output.get('web search'):
@@ -16,6 +18,7 @@ async def stream_app_output(app,input,config):
             yield f"{json.dumps({'step':'safety check','safety status':output['guard']['safety_status']})}\n"
         if output.get('final answer'):
             yield f"{json.dumps({'step':'answer written','answer':output['final answer']['answer']})}\n"
+
 
 async def get_answer(app,input,config):
     output=await app.ainvoke(input,config=config)

@@ -5,7 +5,7 @@ from agent.graph_builder import builder
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from contextlib import asynccontextmanager
 from utils import stream_app_output,get_answer
-
+from type import ChatRequest, ChatResponse,ThreadListResponse,HistoryResponse
 
 
 @asynccontextmanager
@@ -31,7 +31,7 @@ async def root():
 async def health_check():
     return {"status": "ok"}
 
-@app.get("/checkpoints")
+@app.get("/checkpoints", response_model=ThreadListResponse)
 async def get_checkpoints():
     """Fetches list of available thread IDs from the checkpointer."""
     
@@ -39,24 +39,28 @@ async def get_checkpoints():
     async with conn.execute("SELECT thread_id FROM checkpoints") as cursor:
         rows = await cursor.fetchall()
         
-        return {"threads": list(set(row[0] for row in rows))}
+        return ThreadListResponse(threads=list(set(row[0] for row in rows)))
 
 @app.post("/chat/stream")
-async def chat_stream(user_input: str, thread_id: int = 1):
-    state={"query":user_input}
-    config = {"configurable": {"thread_id": thread_id}}
+async def chat_stream(request: ChatRequest):
+    state={"query":request.user_input}
+    config = {"configurable": {"thread_id": request.thread_id}}
     graph_app = app.state.graph
     return StreamingResponse(stream_app_output(graph_app,state,config), media_type="application/event-stream")
 
-@app.post("/chat")
-async def chat(user_input: str, thread_id: int = 1):
-    state={"query":user_input}
-    config = {"configurable": {"thread_id": thread_id}}
+@app.post("/chat",response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    state={"query":request.user_input}
+    config = {"configurable": {"thread_id": request.thread_id}}
     graph_app = app.state.graph
-    output=await get_answer(graph_app,state,config)
-    return {"response": output}
+    try:
+        output=await get_answer(graph_app,state,config)
+    except Exception as e:
+        print(f"Error in /chat endpoint: {e}")
+        return ChatResponse(success=False, error="Something went wrong while processing the request.")
+    return ChatResponse(success=True, response=output)
 
-@app.get("/history")
+@app.get("/history", response_model=HistoryResponse)
 async def get_history(thread_id: int = 1):
     """Fetches full chat history for a given thread."""
     config = {"configurable": {"thread_id": thread_id}}
@@ -65,7 +69,7 @@ async def get_history(thread_id: int = 1):
     checkpoint_tuple = await app.state.checkpointer.aget_tuple(config)
     
     if not checkpoint_tuple:
-        return {"messages": []}
+        return HistoryResponse(messages=[])
     
     messages = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
     formated_messages = [{"type": message.type, "content": message.content} 
@@ -74,4 +78,4 @@ async def get_history(thread_id: int = 1):
                      and message.content.strip() != ""]
     
         
-    return {"messages": formated_messages}
+    return HistoryResponse(messages=formated_messages)
