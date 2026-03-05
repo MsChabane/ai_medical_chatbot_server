@@ -12,6 +12,11 @@ from type import ChatRequest, ChatResponse,ThreadListResponse,HistoryResponse
 async def lifespan(app: FastAPI):
     async with AsyncSqliteSaver.from_conn_string("./medical_chatbot.db") as checkpointer:
         await checkpointer.setup()
+        await checkpointer.conn.execute("""CREATE TABLE IF NOT EXISTS threads (
+            thread_id TEXT PRIMARY KEY,
+            thread_name TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
         app.state.checkpointer = checkpointer
         app.state.graph = builder.compile(checkpointer=checkpointer)
         yield   
@@ -22,6 +27,13 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],)
+
+async def insert_thread(thread_id: str, thread_name: str, app: FastAPI):
+    """Inserts a new thread into the database."""
+
+    conn = app.state.checkpointer.conn
+    await conn.execute("INSERT OR IGNORE INTO threads (thread_id, thread_name) VALUES (?, ?)", (thread_id, thread_name))
+    await conn.commit()
 
 @app.get("/")
 async def root():
@@ -36,13 +48,14 @@ async def get_checkpoints():
     """Fetches list of available thread IDs from the checkpointer."""
     
     conn = app.state.checkpointer.conn
-    async with conn.execute("SELECT thread_id FROM checkpoints") as cursor:
+    async with conn.execute("SELECT distinct thread_id, thread_name FROM threads") as cursor:
         rows = await cursor.fetchall()
-        
-        return ThreadListResponse(threads=list(set(row[0] for row in rows)))
+        print(f"Fetched threads from DB: {rows}")
+        return ThreadListResponse(threads=list({"thread_id": row[0], "thread_name": row[1]} for row in rows))
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
+    await insert_thread(request.thread_id, request.user_input, app)  
     state={"query":request.user_input}
     config = {"configurable": {"thread_id": request.thread_id}}
     graph_app = app.state.graph
@@ -50,18 +63,19 @@ async def chat_stream(request: ChatRequest):
 
 @app.post("/chat",response_model=ChatResponse)
 async def chat(request: ChatRequest):
+    await insert_thread(request.thread_id, request.user_input, app)  
     state={"query":request.user_input}
     config = {"configurable": {"thread_id": request.thread_id}}
     graph_app = app.state.graph
     try:
-        output=await get_answer(graph_app,state,config)
+        output, urls = await get_answer(graph_app,state,config)
     except Exception as e:
         print(f"Error in /chat endpoint: {e}")
         return ChatResponse(success=False, error="Something went wrong while processing the request.")
-    return ChatResponse(success=True, response=output)
+    return ChatResponse(success=True, response=output, urls=urls)
 
 @app.get("/history", response_model=HistoryResponse)
-async def get_history(thread_id: int = 1):
+async def get_history(thread_id: str = None):
     """Fetches full chat history for a given thread."""
     config = {"configurable": {"thread_id": thread_id}}
     

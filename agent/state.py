@@ -6,6 +6,7 @@ class MedicalState(MessagesState):
     summary :Optional[str] = None
     safety_status :Literal['safe','unsafe'] = 'safe'
     answer:str=""
+    urls:list[str]=[]
 
 
 

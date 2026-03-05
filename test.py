@@ -7,28 +7,28 @@ import utils
 load_dotenv()  
 
 
-
-
-config = {"configurable": {"thread_id":4}}
-state={"query":"give me the age of the patient P-005?"}
+config = {"configurable": {"thread_id":12}}
+state={"query":"what is the current time and date ?"}
 async def stream_chat():
     async with AsyncSqliteSaver.from_conn_string("./medical_chatbot.db") as checkpointer:
         app=builder.compile(checkpointer=checkpointer)
-        # async for output in app.astream(state,config=config):
-        #     if output.get('brain'):
-        #         print(f"[bold bright_green ] Brain Output: {output['brain']['messages'][-1].content} [bold bright_green ]")
-        #     if output.get('web_search'):
-        #         print(f"[bold bright_blue ] Web Search Result: {output['web_search']['messages'][-1].content} [bold bright_blue ]")
-        #     if output.get('patient_lookup'):
-        #         print(f"[bold bright_blue ] Patient Lookup Result: {output['patient_lookup']['messages'][-1].content} [bold bright_blue ]")
-        #     if output.get('summarize'):
-        #         print(f"[bold bright_magenta ] New Summary: {output['summarize']['summary']} [bold bright_magenta ]")
-        #     if output.get('helper tools'):
-        #         print(f"[bold bright_cyan ] Helper Tools Output: {output['helper tools']['messages'][-1].content} [bold bright_cyan ]")
-        #     if output.get('guard'):
-        #         print(f"[bold bright_red ] Guard Decision: {output['guard']} [bold bright_red ]")
-        async for output in utils.stream_app_output(app,state,config):
-         print(output)
+        async for output in app.astream(state,config=config):
+            if output.get('brain'):
+                print(f"[bold bright_green ] Brain is active [bold bright_green ]")
+            if output.get('web search'):
+                print(f"[bold bright_blue ] Do a web search [bold bright_blue ]")
+            if output.get('patient lookup'):
+                print(f"[bold bright_blue ] Looking for patients [bold bright_blue ]")
+            if output.get('summarize'):
+                print(f"[bold bright_magenta ] New Summary: {output['summarize']['summary']} [bold bright_magenta ]")
+            if output.get('helper tools'):
+                print(f"[bold bright_cyan ] Using Helper Tools [bold bright_cyan ]")
+            if output.get('guard'):
+                print(f"[bold bright_red ] Guard Decision: {output['guard']['safety_status']} [bold bright_red ]")
+            if output.get('final answer'):
+                print(f"[bold bright_green ] Final Answer: {output['final answer']['answer']} [bold bright_green ]")
+        #async for output in utils.stream_app_output(app,state,config):
+        # print(output)
         
 async def normal_chat():
     async with AsyncSqliteSaver.from_conn_string("./medical_chatbot.db") as checkpointer:

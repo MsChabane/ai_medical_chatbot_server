@@ -139,7 +139,9 @@ def web_search_node(state: MedicalState):
   tool_call = last_message.tool_calls[0]
 
   result = search_web.invoke(tool_call['args'])
-  return {"messages": [ToolMessage(content=result,tool_call_id=tool_call['id'])]}
+  urls = [result["url"] for result in result]
+  result=json.dumps(result)
+  return {"messages": [ToolMessage(content=result,tool_call_id=tool_call['id'])], "urls": urls}
 
 
 def patient_lookup_node(state: MedicalState):

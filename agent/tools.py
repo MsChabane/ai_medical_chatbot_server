@@ -64,7 +64,7 @@ def search_web(query: str) -> List[Dict]:
     medications, or when the patient asks about specific medical conditions.
     """
     results = search_tool.run(query)
-    return json.dumps(results)
+    return results
 
 @tool
 def get_current_date_time() -> str:
